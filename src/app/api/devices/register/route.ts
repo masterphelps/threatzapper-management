@@ -56,44 +56,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // The JWT userId IS the customer_user_id (from customer_users table)
+    const customerUserId = payload.userId;
+
     // Check if device exists
     const { data: existingDevice } = await supabase
       .from("devices")
-      .select("device_id, user_id")
+      .select("device_id, customer_user_id")
       .eq("device_id", deviceId)
       .single();
 
     if (existingDevice) {
-      // Device exists - check if already registered to another user
-      if (existingDevice.user_id && existingDevice.user_id !== payload.userId) {
+      // Device exists - check if already registered to another customer
+      if (existingDevice.customer_user_id && existingDevice.customer_user_id !== customerUserId) {
         return NextResponse.json(
           { success: false, error: "Device is already registered to another account" },
           { status: 409 }
         );
       }
 
-      // Get customer_user_id for this user's email
-      const { data: userData } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", payload.userId)
-        .single();
-
-      let customerUserId = null;
-      if (userData?.email) {
-        const { data: customerData } = await supabase
-          .from("customer_users")
-          .select("id")
-          .eq("email", userData.email)
-          .single();
-        customerUserId = customerData?.id;
-      }
-
-      // Update device to link to both users and customer_users
+      // Update device to link to this customer
       const { error: updateError } = await supabase
         .from("devices")
         .update({
-          user_id: payload.userId,
           customer_user_id: customerUserId,
         })
         .eq("device_id", deviceId);
@@ -107,28 +92,10 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Device doesn't exist yet - create it
-      // Get customer_user_id for this user's email
-      const { data: userData } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", payload.userId)
-        .single();
-
-      let customerUserId = null;
-      if (userData?.email) {
-        const { data: customerData } = await supabase
-          .from("customer_users")
-          .select("id")
-          .eq("email", userData.email)
-          .single();
-        customerUserId = customerData?.id;
-      }
-
       const { error: insertError } = await supabase
         .from("devices")
         .insert({
           device_id: deviceId,
-          user_id: payload.userId,
           customer_user_id: customerUserId,
           name: `Device ${deviceId.slice(-6)}`,
           status: "offline",

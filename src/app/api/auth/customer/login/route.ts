@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { verifyPassword, generateToken, isValidEmail } from '@/lib/auth';
 
+// Customer login - called by device setup wizard for returning customers
+// Checks customer_users table (NOT users table - that's for admins)
 export async function POST(request: NextRequest) {
   try {
     // Parse body - handle requests without Content-Type header (from uclient-fetch)
@@ -38,9 +40,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find admin user by email
+    // Find customer by email
     const { data: user, error: fetchError } = await supabase
-      .from('users')
+      .from('customer_users')
       .select('*')
       .eq('email', email.toLowerCase())
       .single();
@@ -62,6 +64,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Update last_login
+    await supabase
+      .from('customer_users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
+
     // Generate JWT token
     const token = await generateToken({
       id: user.id,
@@ -70,32 +78,21 @@ export async function POST(request: NextRequest) {
       created_at: user.created_at,
     });
 
-    // Create response with httpOnly cookie
-    const response = NextResponse.json({
+    console.log(`[Auth] Customer logged in: ${email}`);
+
+    return NextResponse.json({
       success: true,
       message: 'Login successful',
-      token, // Include token in body for device registration
+      token,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
       },
+      customerUserId: user.id,
     });
-
-    // Set httpOnly cookie
-    response.cookies.set('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: '/',
-    });
-
-    console.log(`[Auth] User logged in: ${email}`);
-
-    return response;
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Customer login error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

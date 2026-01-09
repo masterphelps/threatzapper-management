@@ -7,11 +7,26 @@ import {
   isValidPassword,
 } from '@/lib/auth';
 
-// Admin signup - for ThreatZapper staff only
-// Creates account in users table (NOT customer_users - that's for device owners)
+// Customer signup - called by device setup wizard
+// Creates account in customer_users table (NOT users table - that's for admins)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Parse body - handle requests without Content-Type header (from uclient-fetch)
+    let body;
+    const contentType = request.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      body = await request.json();
+    } else {
+      const text = await request.text();
+      try {
+        body = JSON.parse(text);
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'Invalid JSON body' },
+          { status: 400 }
+        );
+      }
+    }
     const { email, password, name } = body;
 
     // Validate input
@@ -39,14 +54,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if admin user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
+    // Check if customer already exists
+    const { data: existingCustomer } = await supabase
+      .from('customer_users')
       .select('id')
       .eq('email', email.toLowerCase())
       .single();
 
-    if (existingUser) {
+    if (existingCustomer) {
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 409 }
@@ -56,19 +71,20 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await hashPassword(password);
 
-    // Create admin user
+    // Create customer user
     const { data: newUser, error: createError } = await supabase
-      .from('users')
+      .from('customer_users')
       .insert({
         email: email.toLowerCase(),
         password_hash: passwordHash,
         name: name || null,
+        email_verified: false,
       })
       .select()
       .single();
 
     if (createError) {
-      console.error('Admin user creation error:', createError);
+      console.error('Customer user creation error:', createError);
       return NextResponse.json(
         { error: 'Failed to create user', details: createError.message },
         { status: 500 }
@@ -83,35 +99,24 @@ export async function POST(request: NextRequest) {
       created_at: newUser.created_at,
     });
 
-    // Create response with httpOnly cookie
-    const response = NextResponse.json(
+    console.log(`[Auth] New customer created: ${email}`);
+
+    return NextResponse.json(
       {
         success: true,
-        message: 'Admin account created successfully',
+        message: 'Account created successfully. You can now manage your account at portal.threatzapper.com',
         token,
         user: {
           id: newUser.id,
           email: newUser.email,
           name: newUser.name,
         },
+        customerUserId: newUser.id,
       },
       { status: 201 }
     );
-
-    // Set httpOnly cookie
-    response.cookies.set('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: '/',
-    });
-
-    console.log(`[Auth] New admin user created: ${email}`);
-
-    return response;
   } catch (error) {
-    console.error('Admin signup error:', error);
+    console.error('Customer signup error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
