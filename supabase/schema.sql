@@ -113,10 +113,90 @@ order by hour;
 -- Run every minute to check for offline devices
 -- select cron.schedule('mark-offline', '* * * * *', 'select mark_offline_devices()');
 
+-- Device commands: queued commands for devices to execute
+-- Command types: update_blocklist, exec, reboot, update_firmware, set_config, file_download
+create table device_commands (
+  id uuid primary key default uuid_generate_v4(),
+  device_id text references devices(device_id) on delete cascade,
+  command_type text not null check (command_type in (
+    'update_blocklist',   -- Download blocklist from URL
+    'exec',               -- Execute shell script
+    'reboot',             -- Reboot device
+    'update_firmware',    -- Download and flash firmware
+    'set_config',         -- Update UCI config
+    'file_download'       -- Download file to specified path
+  )),
+  payload jsonb not null default '{}',  -- Command-specific data
+  -- payload examples:
+  -- update_blocklist: { "url": "https://..." }
+  -- exec: { "script": "#!/bin/sh\n..." }
+  -- reboot: {}
+  -- update_firmware: { "url": "https://...", "sha256": "..." }
+  -- set_config: { "key": "network.lan.ipaddr", "value": "192.168.1.1" }
+  -- file_download: { "url": "https://...", "path": "/etc/threatzapper/custom.txt", "mode": "644" }
+  status text default 'pending' check (status in ('pending', 'sent', 'acknowledged', 'completed', 'failed')),
+  result text,                           -- Result/error message from device
+  created_at timestamp with time zone default now(),
+  sent_at timestamp with time zone,      -- When command was sent to device
+  completed_at timestamp with time zone  -- When device reported completion
+);
+
+-- Index for fetching pending commands efficiently
+create index idx_device_commands_pending on device_commands(device_id, status) where status = 'pending';
+create index idx_device_commands_device on device_commands(device_id, created_at desc);
+
+-- Broadcast commands: send to ALL devices (null device_id)
+-- When device_id is null, command applies to all devices
+alter table device_commands alter column device_id drop not null;
+
+-- View: pending commands per device
+create view pending_commands as
+select
+  dc.id,
+  dc.device_id,
+  dc.command_type,
+  dc.payload,
+  dc.created_at
+from device_commands dc
+where dc.status = 'pending'
+order by dc.created_at asc;
+
+-- Function to get pending commands for a device (includes broadcasts)
+create or replace function get_pending_commands(p_device_id text)
+returns table (
+  id uuid,
+  command_type text,
+  payload jsonb
+) as $$
+begin
+  return query
+  select dc.id, dc.command_type, dc.payload
+  from device_commands dc
+  where (dc.device_id = p_device_id or dc.device_id is null)
+    and dc.status = 'pending'
+  order by dc.created_at asc
+  limit 10;  -- Max 10 commands per check-in
+end;
+$$ language plpgsql;
+
+-- Function to mark commands as sent
+create or replace function mark_commands_sent(command_ids uuid[])
+returns void as $$
+begin
+  update device_commands
+  set status = 'sent', sent_at = now()
+  where id = any(command_ids);
+end;
+$$ language plpgsql;
+
 -- Sample data for testing (optional - comment out for production)
 /*
 insert into devices (device_id, name, wifi_ip, mode, firmware, blocked_inbound, blocked_outbound, wifi_ssid, wifi_signal)
 values
   ('AABBCCDDEEFF', 'Office ThreatZapper', '192.168.1.100', 'bridge', '1.0.0', 1250, 340, 'OfficeWiFi', -45),
   ('112233445566', 'Home ThreatZapper', '192.168.6.93', 'bridge', '1.0.0', 890, 120, 'HomeNetwork', -52);
+
+-- Sample command
+insert into device_commands (device_id, command_type, payload)
+values ('AABBCCDDEEFF', 'exec', '{"script": "echo hello > /tmp/test.txt"}');
 */

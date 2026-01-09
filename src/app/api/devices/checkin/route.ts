@@ -1,8 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+// Device API key - devices must include this in Authorization header
+const DEVICE_API_KEY = process.env.DEVICE_API_KEY || "tz_dev_key_change_me";
+
+function verifyApiKey(request: NextRequest): boolean {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) return false;
+
+  // Support both "Bearer <key>" and just "<key>"
+  const key = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : authHeader;
+
+  return key === DEVICE_API_KEY;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // Verify API key
+    if (!verifyApiKey(request)) {
+      console.log("[Checkin] Unauthorized - invalid or missing API key");
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const data = await request.json();
 
     // Validate required fields
@@ -67,6 +91,49 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle command results if device is reporting back
+    if (data.commandResults && Array.isArray(data.commandResults)) {
+      for (const result of data.commandResults) {
+        if (result.id && result.status) {
+          await supabase
+            .from("device_commands")
+            .update({
+              status: result.status,
+              result: result.message || null,
+              completed_at: now,
+            })
+            .eq("id", result.id);
+
+          console.log(`[Command] ${data.deviceId} - ${result.id}: ${result.status}`);
+        }
+      }
+    }
+
+    // Fetch pending commands for this device (including broadcasts where device_id is null)
+    const { data: pendingCommands, error: commandsError } = await supabase
+      .from("device_commands")
+      .select("id, command_type, payload")
+      .or(`device_id.eq.${data.deviceId},device_id.is.null`)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(10);
+
+    if (commandsError) {
+      console.error("Commands fetch error:", commandsError);
+    }
+
+    // Mark commands as sent
+    const commands = pendingCommands || [];
+    if (commands.length > 0) {
+      const commandIds = commands.map((c) => c.id);
+      await supabase
+        .from("device_commands")
+        .update({ status: "sent", sent_at: now })
+        .in("id", commandIds);
+
+      console.log(`[Commands] Sent ${commands.length} commands to ${data.deviceId}`);
+    }
+
     console.log(
       `[Checkin] Device ${data.deviceId} - ${data.mode} mode - ${data.wifiIp}`
     );
@@ -78,6 +145,11 @@ export async function POST(request: NextRequest) {
         id: device.device_id,
         name: device.name,
       },
+      commands: commands.map((c) => ({
+        id: c.id,
+        type: c.command_type,
+        payload: c.payload,
+      })),
     });
   } catch (error) {
     console.error("Checkin error:", error);
@@ -88,7 +160,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET - list all devices (for dashboard)
+// GET - list all devices (for dashboard) - no auth required for dashboard
 export async function GET() {
   try {
     // Mark offline devices (no check-in for 5+ minutes)
