@@ -10,7 +10,6 @@ import {
   Activity,
   Server,
   RefreshCw,
-  Terminal,
   MoreVertical,
   Clock,
   ArrowDownLeft,
@@ -24,12 +23,13 @@ import { Device, DeviceStats, BlockEvent, isDeviceOnline, formatUptime, formatLa
 export default function Dashboard() {
   const [devices, setDevices] = useState<Device[]>([])
   const [blockEvents, setBlockEvents] = useState<BlockEvent[]>([])
-  const [stats, setStats] = useState<DeviceStats & { totalInbound?: number; totalOutbound?: number }>({
+  const [stats, setStats] = useState<DeviceStats>({
     totalDevices: 0,
     onlineDevices: 0,
     offlineDevices: 0,
     totalBlocked: 0,
-    blockedToday: 0,
+    totalInbound: 0,
+    totalOutbound: 0,
   })
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
@@ -151,9 +151,9 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="text-2xl font-bold">
-                  {stats.blockedToday.toLocaleString()}
+                  {stats.totalInbound.toLocaleString()}
                 </div>
-                <div className="text-xs text-muted-foreground">Blocked Today</div>
+                <div className="text-xs text-muted-foreground">Inbound Blocked</div>
               </div>
             </div>
           </div>
@@ -284,7 +284,7 @@ export default function Dashboard() {
                             {device.blockedCount.toLocaleString()}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            +{device.blockedToday.toLocaleString()} today
+                            {device.blockedInbound.toLocaleString()} in / {device.blockedOutbound.toLocaleString()} out
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -295,17 +295,6 @@ export default function Dashboard() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {device.tunnelActive && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 gap-1"
-                                title={`SSH: ${device.tunnelHostname}`}
-                              >
-                                <Terminal className="h-4 w-4" />
-                                SSH
-                              </Button>
-                            )}
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
