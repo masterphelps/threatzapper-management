@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
           user_id: payload.userId,
           name: `Device ${deviceId.slice(-6)}`,
           status: "offline",
-          mode: "unknown",
+          mode: "router", // Default to router mode (setup mode)
         });
 
       if (insertError) {
