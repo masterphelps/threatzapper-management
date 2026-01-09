@@ -85,13 +85,13 @@ create trigger devices_updated_at
   for each row
   execute function update_updated_at();
 
--- Function to mark devices offline if no check-in for 5 minutes
+-- Function to mark devices offline if no check-in for 3 minutes
 create or replace function mark_offline_devices()
 returns void as $$
 begin
   update devices
   set status = 'offline'
-  where last_seen < now() - interval '5 minutes'
+  where last_seen < now() - interval '3 minutes'
     and status != 'offline';
 end;
 $$ language plpgsql;
