@@ -72,10 +72,30 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Update device to link to this user
+      // Get customer_user_id for this user's email
+      const { data: userData } = await supabase
+        .from("users")
+        .select("email")
+        .eq("id", payload.userId)
+        .single();
+
+      let customerUserId = null;
+      if (userData?.email) {
+        const { data: customerData } = await supabase
+          .from("customer_users")
+          .select("id")
+          .eq("email", userData.email)
+          .single();
+        customerUserId = customerData?.id;
+      }
+
+      // Update device to link to both users and customer_users
       const { error: updateError } = await supabase
         .from("devices")
-        .update({ user_id: payload.userId })
+        .update({
+          user_id: payload.userId,
+          customer_user_id: customerUserId,
+        })
         .eq("device_id", deviceId);
 
       if (updateError) {
@@ -87,11 +107,29 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Device doesn't exist yet - create it
+      // Get customer_user_id for this user's email
+      const { data: userData } = await supabase
+        .from("users")
+        .select("email")
+        .eq("id", payload.userId)
+        .single();
+
+      let customerUserId = null;
+      if (userData?.email) {
+        const { data: customerData } = await supabase
+          .from("customer_users")
+          .select("id")
+          .eq("email", userData.email)
+          .single();
+        customerUserId = customerData?.id;
+      }
+
       const { error: insertError } = await supabase
         .from("devices")
         .insert({
           device_id: deviceId,
           user_id: payload.userId,
+          customer_user_id: customerUserId,
           name: `Device ${deviceId.slice(-6)}`,
           status: "offline",
           mode: "router", // Default to router mode (setup mode)

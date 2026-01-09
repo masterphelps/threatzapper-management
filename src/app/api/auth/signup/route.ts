@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
+    // Check if user already exists in users table
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
@@ -67,12 +67,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Also check customer_users table
+    const { data: existingCustomer } = await supabase
+      .from('customer_users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (existingCustomer) {
+      return NextResponse.json(
+        { error: 'User with this email already exists' },
+        { status: 409 }
+      );
+    }
+
     // Ignore checkError if it's just "no rows" - that's what we want
 
     // Hash password
     const passwordHash = await hashPassword(password);
 
-    // Create user
+    // Create user in users table (admin/management)
     const { data: newUser, error: createError } = await supabase
       .from('users')
       .insert({
@@ -91,6 +105,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ALSO create user in customer_users table (for portal.threatzapper.com)
+    const { data: customerUser, error: customerError } = await supabase
+      .from('customer_users')
+      .insert({
+        email: email.toLowerCase(),
+        password_hash: passwordHash,
+        name: name || null,
+        email_verified: false,
+      })
+      .select()
+      .single();
+
+    if (customerError) {
+      console.error('Customer user creation error:', customerError);
+      // Don't fail the whole signup - admin account was created
+      // Just log the error for now
+      console.warn('User created in users table but not in customer_users');
+    }
+
     // Generate JWT token
     const token = await generateToken({
       id: newUser.id,
@@ -103,13 +136,14 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json(
       {
         success: true,
-        message: 'User created successfully',
+        message: 'Account created successfully. You can now manage your account at portal.threatzapper.com',
         token, // Include token in body for device registration
         user: {
           id: newUser.id,
           email: newUser.email,
           name: newUser.name,
         },
+        customerUserId: customerUser?.id, // Include customer_user_id for linking
       },
       { status: 201 }
     );
