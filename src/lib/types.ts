@@ -9,13 +9,11 @@ export interface Device {
   uptime: number               // Uptime in seconds
   lastSeen: Date               // Last check-in timestamp
   blockedCount: number         // Total IPs blocked (cumulative)
-  blockedToday: number         // IPs blocked in last 24h
   blockedInbound: number       // Total inbound blocks
   blockedOutbound: number      // Total outbound blocks
   wifiSsid?: string            // Connected WiFi network
   wifiSignal?: number          // WiFi signal strength (dBm)
-  tunnelActive: boolean        // Cloudflare tunnel status
-  tunnelHostname?: string      // Tunnel hostname for SSH
+  status: "online" | "offline" | "warning"
 }
 
 export interface DeviceCheckin {
@@ -24,15 +22,12 @@ export interface DeviceCheckin {
   mode: "bridge" | "router"
   firmware: string
   uptime: number
-  blockedCount: number
-  blockedToday: number
   blockedInbound?: number
   blockedOutbound?: number
   deltaInbound?: number        // Blocks since last report
   deltaOutbound?: number       // Blocks since last report
   wifiSsid?: string
   wifiSignal?: number
-  tunnelHostname?: string
 }
 
 export interface BlockEvent {
@@ -44,21 +39,14 @@ export interface BlockEvent {
   outbound: number
 }
 
-// Block event history (last 100 events)
-export const blockEvents: BlockEvent[] = []
-export const MAX_BLOCK_EVENTS = 100
-
 export interface DeviceStats {
   totalDevices: number
   onlineDevices: number
   offlineDevices: number
   totalBlocked: number
-  blockedToday: number
+  totalInbound: number
+  totalOutbound: number
 }
-
-// For demo/MVP - in-memory storage
-// TODO: Replace with Vercel KV or Postgres
-export const deviceStore: Map<string, Device> = new Map()
 
 export function isDeviceOnline(device: Device): boolean {
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
