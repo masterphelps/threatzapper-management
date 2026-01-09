@@ -4,7 +4,22 @@ import { verifyPassword, generateToken, isValidEmail } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Parse body - handle requests without Content-Type header (from uclient-fetch)
+    let body;
+    const contentType = request.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      body = await request.json();
+    } else {
+      const text = await request.text();
+      try {
+        body = JSON.parse(text);
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'Invalid JSON body' },
+          { status: 400 }
+        );
+      }
+    }
     const { email, password } = body;
 
     // Validate input

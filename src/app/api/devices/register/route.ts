@@ -5,16 +5,41 @@ import { verifyToken } from "@/lib/auth";
 // POST /api/devices/register - Register a device to a user account
 export async function POST(request: NextRequest) {
   try {
-    // Get auth token from header
+    // Parse body - handle requests without Content-Type header (from uclient-fetch)
+    let body;
+    const contentType = request.headers.get("content-type");
+    if (contentType?.includes("application/json")) {
+      body = await request.json();
+    } else {
+      const text = await request.text();
+      try {
+        body = JSON.parse(text);
+      } catch {
+        return NextResponse.json(
+          { success: false, error: "Invalid JSON body" },
+          { status: 400 }
+        );
+      }
+    }
+    const { deviceId, token: bodyToken } = body;
+
+    // Get auth token from header OR body (uclient-fetch can't send headers)
     const authHeader = request.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    let token: string | null = null;
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    } else if (bodyToken) {
+      token = bodyToken;
+    }
+
+    if (!token) {
       return NextResponse.json(
         { success: false, error: "Authorization required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split(" ")[1];
     const payload = await verifyToken(token);
 
     if (!payload) {
@@ -23,10 +48,6 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-
-    // Parse request body
-    const body = await request.json();
-    const { deviceId } = body;
 
     if (!deviceId) {
       return NextResponse.json(
