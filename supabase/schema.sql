@@ -4,6 +4,14 @@
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
+-- Users table: device owners/administrators
+create table users (
+  id uuid primary key default uuid_generate_v4(),
+  email text unique not null,
+  password_hash text,
+  created_at timestamp with time zone default now()
+);
+
 -- Devices table: registered ThreatZapper appliances
 create table devices (
   id uuid primary key default uuid_generate_v4(),
@@ -20,7 +28,11 @@ create table devices (
   status text default 'online' check (status in ('online', 'offline', 'warning')),
   last_seen timestamp with time zone default now(),
   created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
+  updated_at timestamp with time zone default now(),
+  user_id uuid references users(id) on delete set null,
+  first_seen timestamp with time zone default now(),
+  last_reboot timestamp with time zone,
+  mac_address text
 );
 
 -- Block events: historical record for analytics
@@ -34,13 +46,29 @@ create table block_events (
   created_at timestamp with time zone default now()
 );
 
+-- Device metrics: hardware stats over time
+create table device_metrics (
+  id uuid primary key default uuid_generate_v4(),
+  device_id text references devices(device_id) on delete cascade,
+  disk_total_mb integer,
+  disk_used_mb integer,
+  mem_total_mb integer,
+  mem_used_mb integer,
+  cpu_load real,
+  temp_celsius real,
+  created_at timestamp with time zone default now()
+);
+
 -- Indexes for performance
+create index idx_users_email on users(email);
 create index idx_devices_device_id on devices(device_id);
 create index idx_devices_last_seen on devices(last_seen);
 create index idx_devices_status on devices(status);
+create index idx_devices_user on devices(user_id);
 create index idx_block_events_device_id on block_events(device_id);
 create index idx_block_events_created_at on block_events(created_at);
 create index idx_block_events_device_time on block_events(device_id, created_at desc);
+create index idx_metrics_device_time on device_metrics(device_id, created_at desc);
 
 -- Function to update updated_at timestamp
 create or replace function update_updated_at()

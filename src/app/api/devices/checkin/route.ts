@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
           blocked_outbound: data.blockedOutbound || 0,
           wifi_ssid: data.wifiSsid || null,
           wifi_signal: data.wifiSignal || null,
+          mac_address: data.macAddress || null,
           status: "online",
           last_seen: now,
         },
@@ -67,6 +68,28 @@ export async function POST(request: NextRequest) {
         { error: "Database error", details: deviceError.message },
         { status: 500 }
       );
+    }
+
+    // Insert device metrics if present
+    if (data.metrics) {
+      const { error: metricsError } = await supabase
+        .from("device_metrics")
+        .insert({
+          device_id: data.deviceId,
+          disk_total_mb: data.metrics.diskTotalMb,
+          disk_used_mb: data.metrics.diskUsedMb,
+          mem_total_mb: data.metrics.memTotalMb,
+          mem_used_mb: data.metrics.memUsedMb,
+          cpu_load: data.metrics.cpuLoad,
+          temp_celsius: data.metrics.tempCelsius,
+        });
+
+      if (metricsError) {
+        console.error("Metrics insert error:", metricsError);
+        // Don't fail the entire check-in if metrics fail
+      } else {
+        console.log(`[Metrics] Device ${data.deviceId} - CPU:${data.metrics.cpuLoad}% Temp:${data.metrics.tempCelsius}C`);
+      }
     }
 
     // Record block event if there were any blocks

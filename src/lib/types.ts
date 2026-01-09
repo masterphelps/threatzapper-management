@@ -7,6 +7,7 @@ export interface Device {
   mode: "bridge" | "router"    // Current operating mode
   firmware: string             // Firmware version
   uptime: number               // Uptime in seconds
+  firstSeen?: Date             // First check-in timestamp
   lastSeen: Date               // Last check-in timestamp
   blockedCount: number         // Total IPs blocked (cumulative)
   blockedInbound: number       // Total inbound blocks
@@ -28,6 +29,15 @@ export interface DeviceCheckin {
   deltaOutbound?: number       // Blocks since last report
   wifiSsid?: string
   wifiSignal?: number
+  macAddress?: string          // MAC address (explicit field)
+  metrics?: {
+    diskTotalMb: number
+    diskUsedMb: number
+    memTotalMb: number
+    memUsedMb: number
+    cpuLoad: number
+    tempCelsius: number
+  }
 }
 
 export interface BlockEvent {
@@ -46,6 +56,26 @@ export interface DeviceStats {
   totalBlocked: number
   totalInbound: number
   totalOutbound: number
+}
+
+export interface DeviceMetrics {
+  id: string
+  deviceId: string
+  diskTotalMb: number
+  diskUsedMb: number
+  memTotalMb: number
+  memUsedMb: number
+  cpuLoad: number
+  tempCelsius: number
+  createdAt: Date
+}
+
+export interface DeviceDetail extends Device {
+  macAddress?: string
+  firstSeen?: Date
+  lastReboot?: Date
+  metrics?: DeviceMetrics
+  recentEvents?: BlockEvent[]
 }
 
 export function isDeviceOnline(device: Device): boolean {

@@ -3,8 +3,8 @@ import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "ThreatZapper Fleet Manager",
-  description: "Manage and monitor your ThreatZapper device fleet",
+  title: "ThreatZapper Platform Manager",
+  description: "Manage and monitor your ThreatZapper devices",
   icons: {
     icon: "/favicon.png",
   },
