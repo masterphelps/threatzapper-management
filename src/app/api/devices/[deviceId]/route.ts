@@ -66,6 +66,12 @@ export async function GET(
       macAddress: device.mac_address,
       firstSeen: device.created_at,
       lastReboot: device.last_reboot,
+      // Geo/Network info
+      publicIp: device.public_ip,
+      publicCity: device.public_city,
+      publicCountry: device.public_country,
+      publicLat: device.public_lat,
+      publicLng: device.public_lng,
       metrics: latestMetrics ? {
         id: latestMetrics.id,
         deviceId: latestMetrics.device_id,
@@ -100,6 +106,68 @@ export async function GET(
     return NextResponse.json(deviceDetail);
   } catch (error) {
     console.error("GET device error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/devices/[deviceId] - Update device (rename)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ deviceId: string }> }
+) {
+  try {
+    const { deviceId } = await params;
+    const body = await request.json();
+
+    // Validate name if provided
+    if (body.name !== undefined && typeof body.name !== "string") {
+      return NextResponse.json(
+        { error: "Name must be a string" },
+        { status: 400 }
+      );
+    }
+
+    // Build update object
+    const updateData: Record<string, string | null> = {};
+    if (body.name !== undefined) {
+      updateData.name = body.name.trim() || null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: "No valid fields to update" },
+        { status: 400 }
+      );
+    }
+
+    const { data: device, error } = await supabase
+      .from("devices")
+      .update(updateData)
+      .eq("device_id", deviceId)
+      .select()
+      .single();
+
+    if (error || !device) {
+      return NextResponse.json(
+        { error: "Device not found or update failed" },
+        { status: 404 }
+      );
+    }
+
+    console.log(`[Device] Renamed ${deviceId} to "${device.name}"`);
+
+    return NextResponse.json({
+      success: true,
+      device: {
+        id: device.device_id,
+        name: device.name,
+      },
+    });
+  } catch (error) {
+    console.error("PATCH device error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
