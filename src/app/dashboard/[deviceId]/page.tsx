@@ -20,9 +20,11 @@ import {
   XCircle,
   AlertCircle,
   MoreVertical,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { formatUptime, formatLastSeen } from "@/lib/types"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -70,12 +72,14 @@ interface Command {
 }
 
 export default function DeviceDetailPage({ params }: { params: { deviceId: string } }) {
+  const router = useRouter()
   const [device, setDevice] = useState<DeviceDetail | null>(null)
   const [events, setEvents] = useState<BlockEvent[]>([])
   const [commands, setCommands] = useState<Command[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [commandModal, setCommandModal] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   const fetchDeviceData = async () => {
     try {
@@ -125,6 +129,17 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
     const interval = setInterval(fetchDeviceData, 10000)
     return () => clearInterval(interval)
   }, [params.deviceId])
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+      router.push("/login")
+    } catch (error) {
+      console.error("Logout failed:", error)
+      setLoggingOut(false)
+    }
+  }
 
   const isOnline = device?.status === "online" ||
     (device && new Date().getTime() - new Date(device.lastSeen).getTime() < 5 * 60 * 1000)
@@ -189,6 +204,22 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               </Button>
               <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="h-8 px-3 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+              >
+                {loggingOut ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1.5">Logout</span>
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>

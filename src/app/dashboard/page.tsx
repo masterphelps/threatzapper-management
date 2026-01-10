@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   const fetchDevices = async () => {
     try {
@@ -53,6 +55,17 @@ export default function Dashboard() {
       console.error("Failed to fetch devices:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+      router.push("/login")
+    } catch (error) {
+      console.error("Logout failed:", error)
+      setLoggingOut(false)
     }
   }
 
@@ -152,6 +165,22 @@ export default function Dashboard() {
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               </Button>
               <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="h-8 px-3 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+              >
+                {loggingOut ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1.5">Logout</span>
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
