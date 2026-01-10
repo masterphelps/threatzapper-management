@@ -106,3 +106,68 @@ export async function GET(
     );
   }
 }
+
+// DELETE /api/devices/[deviceId] - Delete a device and all associated data
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ deviceId: string }> }
+) {
+  try {
+    const { deviceId } = await params;
+
+    // First verify the device exists
+    const { data: device, error: findError } = await supabase
+      .from("devices")
+      .select("device_id")
+      .eq("device_id", deviceId)
+      .single();
+
+    if (findError || !device) {
+      return NextResponse.json(
+        { error: "Device not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete related data first (due to foreign key constraints)
+    // Delete block events
+    await supabase
+      .from("block_events")
+      .delete()
+      .eq("device_id", deviceId);
+
+    // Delete device metrics
+    await supabase
+      .from("device_metrics")
+      .delete()
+      .eq("device_id", deviceId);
+
+    // Delete device commands
+    await supabase
+      .from("device_commands")
+      .delete()
+      .eq("device_id", deviceId);
+
+    // Finally delete the device
+    const { error: deleteError } = await supabase
+      .from("devices")
+      .delete()
+      .eq("device_id", deviceId);
+
+    if (deleteError) {
+      console.error("Failed to delete device:", deleteError);
+      return NextResponse.json(
+        { error: "Failed to delete device" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, message: "Device deleted" });
+  } catch (error) {
+    console.error("DELETE device error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

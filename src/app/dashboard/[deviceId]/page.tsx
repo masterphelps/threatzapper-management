@@ -21,6 +21,7 @@ import {
   AlertCircle,
   MoreVertical,
   LogOut,
+  Trash2,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -80,6 +81,8 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [commandModal, setCommandModal] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [deleteModal, setDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchDeviceData = async () => {
     try {
@@ -138,6 +141,28 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
     } catch (error) {
       console.error("Logout failed:", error)
       setLoggingOut(false)
+    }
+  }
+
+  const handleDeleteDevice = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/devices/${params.deviceId}`, {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        router.push("/dashboard")
+      } else {
+        const data = await res.json()
+        console.error("Delete failed:", data.error)
+        alert("Failed to delete device: " + (data.error || "Unknown error"))
+      }
+    } catch (error) {
+      console.error("Delete failed:", error)
+      alert("Failed to delete device")
+    } finally {
+      setDeleting(false)
+      setDeleteModal(false)
     }
   }
 
@@ -265,6 +290,16 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
                 <span className="font-mono">{device.wifiIp}</span>
               </div>
             </div>
+            {/* Delete Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteModal(true)}
+              className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Delete Device
+            </Button>
           </div>
         </div>
 
@@ -525,6 +560,43 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
             fetchDeviceData()
           }}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 w-full max-w-md shadow-xl">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Delete Device</h3>
+            </div>
+            <div className="p-4">
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+                Are you sure you want to delete <strong className="text-gray-900 dark:text-white">{device.name || device.id}</strong>?
+                This will remove all data associated with this device including block history and metrics.
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-400 mb-4">
+                This action cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setDeleteModal(false)}
+                  disabled={deleting}
+                  className="flex-1 h-9 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDeleteDevice}
+                  disabled={deleting}
+                  className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+                >
+                  {deleting ? "Deleting..." : "Delete Device"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
