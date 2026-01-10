@@ -34,7 +34,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { formatUptime } from "@/lib/types"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -87,8 +87,10 @@ interface BlockEvent {
   totalOutbound: number
 }
 
-export default function DeviceDetailPage({ params }: { params: { deviceId: string } }) {
+export default function DeviceDetailPage() {
   const router = useRouter()
+  const params = useParams<{ deviceId: string }>()
+  const deviceId = params.deviceId
   const [device, setDevice] = useState<DeviceDetail | null>(null)
   const [commands, setCommands] = useState<Command[]>([])
   const [events, setEvents] = useState<BlockEvent[]>([])
@@ -116,7 +118,7 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
 
   const fetchDeviceData = async () => {
     try {
-      const res = await fetch(`/api/devices/${params.deviceId}`)
+      const res = await fetch(`/api/devices/${deviceId}`)
       const data = await res.json()
 
       if (data.id) {
@@ -162,7 +164,7 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
     fetchDeviceData()
     const interval = setInterval(fetchDeviceData, 10000)
     return () => clearInterval(interval)
-  }, [params.deviceId])
+  }, [deviceId])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -178,7 +180,7 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
   const handleDeleteDevice = async () => {
     setDeleting(true)
     try {
-      const res = await fetch(`/api/devices/${params.deviceId}`, { method: "DELETE" })
+      const res = await fetch(`/api/devices/${deviceId}`, { method: "DELETE" })
       if (res.ok) {
         router.push("/dashboard")
       } else {
@@ -202,7 +204,7 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
 
     setRenaming(true)
     try {
-      const res = await fetch(`/api/devices/${params.deviceId}`, {
+      const res = await fetch(`/api/devices/${deviceId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName.trim() }),
@@ -224,7 +226,7 @@ export default function DeviceDetailPage({ params }: { params: { deviceId: strin
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          deviceId: params.deviceId,
+          deviceId: deviceId,
           type,
           payload,
         }),
