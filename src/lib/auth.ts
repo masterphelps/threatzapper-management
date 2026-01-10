@@ -6,14 +6,16 @@ const secret = new TextEncoder().encode(JWT_SECRET);
 
 export interface User {
   id: string;
-  email: string;
+  username?: string;  // For admin users
+  email?: string;     // For customer users
   name?: string;
   created_at: string;
 }
 
 export interface JWTPayload {
   userId: string;
-  email: string;
+  username?: string;  // For admin users
+  email?: string;     // For customer users
   iat: number;
   exp: number;
 }
@@ -40,10 +42,19 @@ export async function verifyPassword(
  * Generate a JWT token for a user
  */
 export async function generateToken(user: User): Promise<string> {
-  const token = await new SignJWT({
+  const payload: { userId: string; username?: string; email?: string } = {
     userId: user.id,
-    email: user.email,
-  })
+  };
+
+  // Support both admin (username) and customer (email) users
+  if (user.username) {
+    payload.username = user.username;
+  }
+  if (user.email) {
+    payload.email = user.email;
+  }
+
+  const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d') // Token expires in 7 days

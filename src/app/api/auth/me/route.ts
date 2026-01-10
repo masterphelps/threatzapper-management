@@ -38,10 +38,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Extract username from email (stored as username@threatzapper.internal)
+    const username = user.email.split('@')[0];
+
     return NextResponse.json({
       user: {
         id: user.id,
-        email: user.email,
+        username,
         name: user.name,
         createdAt: user.created_at,
       },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { verifyPassword, generateToken, isValidEmail } from '@/lib/auth';
+import { verifyPassword, generateToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,34 +20,27 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    const { email, password } = body;
+    const { username, password } = body;
 
     // Validate input
-    if (!email || !password) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Username and password are required' },
         { status: 400 }
       );
     }
 
-    // Validate email format
-    if (!isValidEmail(email)) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 }
-      );
-    }
-
-    // Find admin user by email
+    // Find admin user by username (stored as email internally)
+    const email = `${username.toLowerCase()}@threatzapper.internal`;
     const { data: user, error: fetchError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email.toLowerCase())
+      .eq('email', email)
       .single();
 
     if (fetchError || !user) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Invalid username or password' },
         { status: 401 }
       );
     }
@@ -57,15 +50,18 @@ export async function POST(request: NextRequest) {
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Invalid username or password' },
         { status: 401 }
       );
     }
 
+    // Extract username from email for token/response
+    const usernameFromEmail = user.email.split('@')[0];
+
     // Generate JWT token
     const token = await generateToken({
       id: user.id,
-      email: user.email,
+      username: usernameFromEmail,
       name: user.name,
       created_at: user.created_at,
     });
@@ -77,7 +73,7 @@ export async function POST(request: NextRequest) {
       token, // Include token in body for device registration
       user: {
         id: user.id,
-        email: user.email,
+        username: usernameFromEmail,
         name: user.name,
       },
     });
@@ -91,7 +87,7 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
-    console.log(`[Auth] User logged in: ${email}`);
+    console.log(`[Auth] User logged in: ${usernameFromEmail}`);
 
     return response;
   } catch (error) {

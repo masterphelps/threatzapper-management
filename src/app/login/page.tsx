@@ -22,15 +22,12 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      // Map username to internal email format
-      const email = `${username.toLowerCase()}@threatzapper.internal`;
-
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username: username.toLowerCase(), password }),
       });
 
       const data = await response.json();
