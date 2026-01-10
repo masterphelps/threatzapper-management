@@ -4,6 +4,52 @@ import { supabase } from "@/lib/supabase";
 // Device API key - devices must include this in Authorization header
 const DEVICE_API_KEY = process.env.DEVICE_API_KEY || "tz_dev_key_change_me";
 
+// Get public IP from request headers
+function getPublicIP(request: NextRequest): string | null {
+  // Vercel/Cloudflare provide these headers
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    // x-forwarded-for can contain multiple IPs, take the first (client) one
+    return forwardedFor.split(",")[0].trim();
+  }
+
+  const realIP = request.headers.get("x-real-ip");
+  if (realIP) {
+    return realIP.trim();
+  }
+
+  return null;
+}
+
+// Simple IP geolocation using ip-api.com (free, no key required, 45 req/min)
+async function geolocateIP(ip: string): Promise<{ lat: number; lng: number; city: string; country: string } | null> {
+  try {
+    // Skip private IPs
+    if (ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("172.")) {
+      return null;
+    }
+
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city,lat,lon`, {
+      next: { revalidate: 86400 } // Cache for 24 hours
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.status !== "success") return null;
+
+    return {
+      lat: data.lat,
+      lng: data.lon,
+      city: data.city || "",
+      country: data.country || "",
+    };
+  } catch (error) {
+    console.error("Geolocation error:", error);
+    return null;
+  }
+}
+
 function verifyApiKey(request: NextRequest): boolean {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return false;
@@ -39,6 +85,17 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
 
+    // Get public IP and geolocate
+    const publicIP = getPublicIP(request);
+    let geoData: { lat: number; lng: number; city: string; country: string } | null = null;
+
+    if (publicIP) {
+      geoData = await geolocateIP(publicIP);
+      if (geoData) {
+        console.log(`[Geo] Device ${data.deviceId} at ${geoData.city}, ${geoData.country} (${publicIP})`);
+      }
+    }
+
     // Upsert device
     const { data: device, error: deviceError } = await supabase
       .from("devices")
@@ -54,6 +111,11 @@ export async function POST(request: NextRequest) {
           wifi_ssid: data.wifiSsid || null,
           wifi_signal: data.wifiSignal || null,
           mac_address: data.macAddress || null,
+          public_ip: publicIP,
+          public_lat: geoData?.lat || null,
+          public_lng: geoData?.lng || null,
+          public_city: geoData?.city || null,
+          public_country: geoData?.country || null,
           status: "online",
           last_seen: now,
         },
