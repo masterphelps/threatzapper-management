@@ -294,6 +294,7 @@ export async function GET() {
       mode: d.mode,
       firmware: d.firmware,
       uptime: d.uptime,
+      firstSeen: d.created_at,
       lastSeen: d.last_seen,
       blockedInbound: d.blocked_inbound,
       blockedOutbound: d.blocked_outbound,
