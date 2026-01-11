@@ -19,7 +19,6 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  LogOut,
   Trash2,
   RotateCcw,
   Download,
@@ -31,12 +30,14 @@ import {
   Terminal,
   ChevronDown,
   ChevronUp,
+  User,
+  ArrowRight,
+  AlertTriangle,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
 import { useRouter, useParams } from "next/navigation"
 import { formatUptime } from "@/lib/types"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 interface DeviceDetail {
   id: string
@@ -64,6 +65,13 @@ interface DeviceDetail {
   publicIp?: string
   publicCity?: string
   publicCountry?: string
+  // Owner
+  owner?: {
+    id: string
+    email: string
+    name?: string
+    subscriptionStatus?: string
+  }
 }
 
 interface Command {
@@ -99,7 +107,6 @@ export default function DeviceDetailPage() {
 
   // UI States
   const [commandModal, setCommandModal] = useState(false)
-  const [loggingOut, setLoggingOut] = useState(false)
   const [deleteModal, setDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -146,6 +153,7 @@ export default function DeviceDetailPage() {
           publicIp: data.publicIp,
           publicCity: data.publicCity,
           publicCountry: data.publicCountry,
+          owner: data.owner,
         }
 
         setDevice(deviceDetail)
@@ -165,17 +173,6 @@ export default function DeviceDetailPage() {
     const interval = setInterval(fetchDeviceData, 10000)
     return () => clearInterval(interval)
   }, [deviceId])
-
-  const handleLogout = async () => {
-    setLoggingOut(true)
-    try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      router.push("/login")
-    } catch (error) {
-      console.error("Logout failed:", error)
-      setLoggingOut(false)
-    }
-  }
 
   const handleDeleteDevice = async () => {
     setDeleting(true)
@@ -280,7 +277,7 @@ export default function DeviceDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-gray-500 dark:text-slate-500" />
           <p className="text-sm text-gray-500 dark:text-slate-400">Loading device...</p>
@@ -291,14 +288,14 @@ export default function DeviceDetailPage() {
 
   if (!device) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <Server className="h-12 w-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
           <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">Device not found</p>
           <Link href="/dashboard">
             <Button variant="ghost" className="text-gray-600 dark:text-slate-400">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Fleet
+              Back to Overview
             </Button>
           </Link>
         </div>
@@ -307,40 +304,85 @@ export default function DeviceDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
-        <div className="max-w-[1600px] mx-auto px-6">
-          <div className="flex h-14 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="flex items-center gap-2">
-                <Image src="/logo1.png" alt="ThreatZapper" width={180} height={45} className="h-7 w-auto dark:brightness-0 dark:invert" />
-              </Link>
-              <span className="text-gray-300 dark:text-slate-700">|</span>
-              <span className="text-gray-600 dark:text-slate-400 text-sm font-medium">Device Management</span>
+    <div>
+      {/* Page Header */}
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/devices">
+            <Button variant="ghost" size="sm" className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Devices
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Device Details</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {device.name || device.id}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500 dark:text-slate-500">
+            Updated {lastRefresh.toLocaleTimeString()}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchDeviceData}
+            className="h-9 px-3 text-gray-500 dark:text-slate-400"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Owner Section */}
+      {device.owner && (
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-5 mb-6">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <User className="h-4 w-4 text-gray-500" />
+            Device Owner
+          </h2>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{device.owner.email}</span>
+                {device.owner.subscriptionStatus && (
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    device.owner.subscriptionStatus === 'active'
+                      ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
+                      : device.owner.subscriptionStatus === 'trial'
+                      ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400'
+                      : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'
+                  }`}>
+                    {device.owner.subscriptionStatus}
+                  </span>
+                )}
+              </div>
+              {device.owner.name && (
+                <p className="text-xs text-gray-500 dark:text-slate-400">{device.owner.name}</p>
+              )}
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500 dark:text-slate-500">Updated {lastRefresh.toLocaleTimeString()}</span>
-              <Button variant="ghost" size="sm" onClick={fetchDeviceData} className="h-8 px-3 text-gray-500 dark:text-slate-400">
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <Link href={`/dashboard/users/${device.owner.id}`}>
+              <Button variant="ghost" size="sm" className="text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10">
+                View User
+                <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
-              <ThemeToggle />
-              <Button variant="ghost" size="sm" onClick={handleLogout} disabled={loggingOut} className="h-8 px-3 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400">
-                {loggingOut ? <RefreshCw className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /><span className="hidden sm:inline ml-1.5">Logout</span></>}
-              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+      {!device.owner && (
+        <div className="bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-xl p-5 mb-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-200">Orphaned Device</h3>
+              <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">This device is not linked to any customer account.</p>
             </div>
           </div>
         </div>
-      </nav>
-
-      <main className="max-w-[1600px] mx-auto px-6 py-6">
-        {/* Back Button */}
-        <Link href="/dashboard">
-          <Button variant="ghost" size="sm" className="mb-4 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Fleet
-          </Button>
-        </Link>
+      )}
 
         {/* Device Header */}
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-6 mb-6">
@@ -650,7 +692,6 @@ export default function DeviceDetailPage() {
             )}
           </div>
         </div>
-      </main>
 
       {/* Command Modal */}
       {commandModal && (

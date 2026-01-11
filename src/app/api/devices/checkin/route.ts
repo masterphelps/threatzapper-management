@@ -251,10 +251,16 @@ export async function GET() {
     // Mark offline devices (no check-in for 5+ minutes)
     await supabase.rpc("mark_offline_devices");
 
-    // Fetch all devices
+    // Fetch all devices with owner info
     const { data: devices, error: devicesError } = await supabase
       .from("devices")
-      .select("*")
+      .select(`
+        *,
+        customer_users:customer_user_id (
+          id,
+          email
+        )
+      `)
       .order("last_seen", { ascending: false });
 
     if (devicesError) {
@@ -302,6 +308,8 @@ export async function GET() {
       wifiSsid: d.wifi_ssid,
       wifiSignal: d.wifi_signal,
       status: d.status,
+      ownerEmail: d.customer_users?.email || null,
+      ownerId: d.customer_users?.id || null,
     }));
 
     // Transform block events to frontend format

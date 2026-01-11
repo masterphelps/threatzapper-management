@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { deviceId } = await params;
 
-    // Fetch device
+    // Fetch device with owner info
     const { data: device, error: deviceError } = await supabase
       .from("devices")
       .select("*")
@@ -21,6 +21,25 @@ export async function GET(
         { error: "Device not found" },
         { status: 404 }
       );
+    }
+
+    // Fetch owner info if customer_user_id exists
+    let owner = null;
+    if (device.customer_user_id) {
+      const { data: customerUser } = await supabase
+        .from("customer_users")
+        .select("id, email, name, subscription_status")
+        .eq("id", device.customer_user_id)
+        .single();
+
+      if (customerUser) {
+        owner = {
+          id: customerUser.id,
+          email: customerUser.email,
+          name: customerUser.name,
+          subscriptionStatus: customerUser.subscription_status,
+        };
+      }
     }
 
     // Fetch latest metrics
@@ -101,6 +120,7 @@ export async function GET(
         completedAt: c.completed_at,
         result: c.result,
       })),
+      owner,
     };
 
     return NextResponse.json(deviceDetail);

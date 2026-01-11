@@ -15,6 +15,8 @@ export interface Device {
   wifiSsid?: string            // Connected WiFi network
   wifiSignal?: number          // WiFi signal strength (dBm)
   status: "online" | "offline" | "warning"
+  ownerEmail?: string | null   // Customer email (from customer_users)
+  ownerId?: string | null      // Customer user ID
 }
 
 export interface DeviceCheckin {
@@ -108,4 +110,20 @@ export function formatLastSeen(date: Date): string {
   if (minutes < 60) return `${minutes}m ago`
   if (hours < 24) return `${hours}h ago`
   return `${days}d ago`
+}
+
+// Customer User Types (from customer_users table)
+export interface CustomerUser {
+  id: string
+  email: string
+  name?: string
+  subscriptionStatus: 'trial' | 'active' | 'cancelled' | 'expired' | 'none'
+  subscriptionPlan?: string
+  trialEndsAt?: Date
+  subscriptionExpiresAt?: Date
+  stripeCustomerId?: string
+  lastLogin?: Date
+  createdAt: Date
+  deviceCount?: number
+  devices?: Device[]
 }
