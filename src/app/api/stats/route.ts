@@ -9,11 +9,18 @@ export async function GET() {
       .from("customer_users")
       .select("*", { count: "exact", head: true });
 
-    // Count active subscriptions
-    const { count: activeSubscriptions } = await supabase
-      .from("customer_users")
-      .select("*", { count: "exact", head: true })
-      .eq("subscription_status", "active");
+    // Count active subscriptions (gracefully handle if column doesn't exist yet)
+    let activeSubscriptions = 0;
+    try {
+      const { count } = await supabase
+        .from("customer_users")
+        .select("*", { count: "exact", head: true })
+        .eq("subscription_status", "active");
+      activeSubscriptions = count || 0;
+    } catch {
+      // subscription_status column may not exist yet
+      activeSubscriptions = 0;
+    }
 
     // Count total devices
     const { count: totalDevices } = await supabase

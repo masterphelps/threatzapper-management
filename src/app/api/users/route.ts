@@ -6,10 +6,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
 
-    // Build query using the user_with_device_count view
+    // Query customer_users table directly with device count
     let query = supabase
-      .from("user_with_device_count")
-      .select("*")
+      .from("customer_users")
+      .select(`
+        *,
+        devices:devices(count)
+      `)
       .order("created_at", { ascending: false })
 
     // Apply search filter if provided
@@ -22,24 +25,25 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error("Error fetching users:", error)
       return NextResponse.json(
-        { error: "Failed to fetch users" },
+        { error: "Failed to fetch users", details: error.message },
         { status: 500 }
       )
     }
 
     // Transform snake_case to camelCase for frontend
-    const users = data.map((user) => ({
+    const users = (data || []).map((user) => ({
       id: user.id,
       email: user.email,
       name: user.name,
-      subscriptionStatus: user.subscription_status,
+      subscriptionStatus: user.subscription_status || "trial",
       subscriptionPlan: user.subscription_plan,
       trialEndsAt: user.trial_ends_at,
       subscriptionExpiresAt: user.subscription_expires_at,
       stripeCustomerId: user.stripe_customer_id,
       lastLogin: user.last_login,
       createdAt: user.created_at,
-      deviceCount: user.device_count || 0,
+      // Handle the nested count from Supabase
+      deviceCount: user.devices?.[0]?.count || 0,
     }))
 
     return NextResponse.json({ users })
