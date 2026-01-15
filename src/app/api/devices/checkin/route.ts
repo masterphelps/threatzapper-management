@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
       },
       commands: commands.map((c) => ({
         id: c.id,
-        type: c.command_type,
+        command_type: c.command_type,
         payload: c.payload,
       })),
     });

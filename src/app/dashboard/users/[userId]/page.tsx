@@ -363,7 +363,7 @@ export default function UserDetailPage() {
                     return (
                       <tr
                         key={device.id}
-                        onClick={() => router.push(`/dashboard/${device.id}`)}
+                        onClick={() => router.push(`/dashboard/devices/${device.id}`)}
                         className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3">
